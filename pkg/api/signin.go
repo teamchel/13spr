@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
-	"time"
 
 	"13spr/pkg/auth"
-	"13spr/pkg/db"
 )
 
 type LoginReq struct {
@@ -51,64 +49,4 @@ func signinHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Ответ с токеном
 	writeJSON(w, map[string]string{"token": token})
-}
-
-func doneTaskHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		writeJSON(w, map[string]string{"error": "Не указан идентификатор"})
-		return
-	}
-
-	task, err := db.GetTask(id)
-	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
-		return
-	}
-
-	now := time.Now().Format("20060102")
-
-	if task.Repeat == "" {
-		// Одноразовая задача — удаляем
-		err = db.DeleteTask(id)
-		if err != nil {
-			writeJSON(w, map[string]string{"error": err.Error()})
-			return
-		}
-	} else {
-		// Периодическая задача — вычисляем следующую дату
-		next, err := NextDate(now, task.Date, task.Repeat)
-		if err != nil {
-			writeJSON(w, map[string]string{"error": err.Error()})
-			return
-		}
-
-		err = db.UpdateDate(next, id)
-		if err != nil {
-			writeJSON(w, map[string]string{"error": err.Error()})
-			return
-		}
-	}
-
-	// Успешно — пустой ответ
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.Write([]byte("{}"))
-}
-
-func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Query().Get("id")
-	if id == "" {
-		writeJSON(w, map[string]string{"error": "Не указан идентификатор"})
-		return
-	}
-
-	err := db.DeleteTask(id)
-	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
-		return
-	}
-
-	// Успешное удаление — пустой ответ
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.Write([]byte("{}"))
 }

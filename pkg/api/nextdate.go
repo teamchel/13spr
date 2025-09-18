@@ -1,20 +1,12 @@
 package api
 
 import (
+	"13spr/pkg/utils"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 	"time"
-
-	"13spr/pkg/utils"
-
 )
-
-
-if utils.AfterNow(date, now) {
-    break
-}
 
 // NextDate вычисляет следующую дату по правилу повторения
 func NextDate(now time.Time, dstart, repeat string) (string, error) {
@@ -23,7 +15,7 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 	}
 
 	// Парсим начальную дату
-	start, err := time.Parse(dateFormat, dstart)
+	start, err := time.Parse(utils.DateFormat, dstart)
 	if err != nil {
 		return "", fmt.Errorf("invalid start date: %w", err)
 	}
@@ -95,7 +87,7 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 
 	// Теперь ищем ближайшую дату после now
 	date := start
-	for !afterNow(date, now) {
+	for !utils.AfterNow(date, now) {
 		switch {
 		case isDay:
 			date = date.AddDate(0, 0, interval)
@@ -108,7 +100,7 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 		}
 	}
 
-	return date.Format(dateFormat), nil
+	return date.Format(utils.DateFormat), nil
 }
 
 // parseInterval преобразует строку в число
@@ -120,7 +112,8 @@ func parseInterval(s string) (int, error) {
 		if len(s) == 1 {
 			return 0, errors.New("invalid interval")
 		}
-		n, err := fmt.Sscanf(s, "%d", &n)
+		var n int
+		_, err := fmt.Sscanf(s, "%d", &n)
 		if err != nil || n < -31 || n > 31 {
 			return 0, errors.New("invalid day in month")
 		}
@@ -149,7 +142,6 @@ func parseWeekDays(s string) ([]int, error) {
 
 // findNextWeekDay находит ближайший день недели из списка
 func findNextWeekDay(date time.Time, days []int) time.Time {
-	now := time.Now()
 	next := date
 	for {
 		next = next.AddDate(0, 0, 1)
@@ -167,11 +159,10 @@ func findNextWeekDay(date time.Time, days []int) time.Time {
 
 // findNextMonthDay находит ближайшую дату в месяце
 func findNextMonthDay(date time.Time, days []int, months []int) time.Time {
-	now := time.Now()
 	next := date
 	for {
 		next = next.AddDate(0, 0, 1)
-		year, month, day := next.Date()
+		_, month, day := next.Date()
 		// Проверяем, является ли день одним из заданных
 		for _, d := range days {
 			if d == day {
@@ -191,37 +182,4 @@ func contains(slice []int, item int) bool {
 		}
 	}
 	return false
-}
-
-func nextDayHandler(w http.ResponseWriter, r *http.Request) {
-	nowStr := r.FormValue("now")
-	dateStr := r.FormValue("date")
-	repeat := r.FormValue("repeat")
-
-	var now time.Time
-	var err error
-
-	if nowStr == "" {
-		now = time.Now()
-	} else {
-		now, err = time.Parse("20060102", nowStr)
-		if err != nil {
-			http.Error(w, "Invalid 'now' date", http.StatusBadRequest)
-			return
-		}
-	}
-
-	if dateStr == "" {
-		http.Error(w, "Missing 'date'", http.StatusBadRequest)
-		return
-	}
-
-	result, err := NextDate(now, dateStr, repeat)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(result))
 }

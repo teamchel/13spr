@@ -1,3 +1,4 @@
+// pkg/server/server.go
 package server
 
 import (
@@ -5,7 +6,6 @@ import (
 	"net/http"
 
 	"13spr/pkg/api"
-	"13spr/pkg/auth"
 )
 
 const webDir = "./web"
@@ -14,10 +14,10 @@ func Start(port string) error {
 	api.Init()
 
 	// Защита API-запросов
-	http.HandleFunc("/api/task", auth.AuthMiddleware(api.taskHandler))
-	http.HandleFunc("/api/tasks", auth.AuthMiddleware(api.tasksHandler))
-	http.HandleFunc("/api/task/done", auth.AuthMiddleware(api.doneTaskHandler))
-	http.HandleFunc("/api/task/delete", auth.AuthMiddleware(api.deleteTaskHandler))
+	http.HandleFunc("/api/task", api.TaskHandler)
+	http.HandleFunc("/api/tasks", api.TasksHandler)
+	http.HandleFunc("/api/task/done", api.DoneTaskHandler)
+	http.HandleFunc("/api/task/delete", api.DeleteTaskHandler)
 
 	fs := http.FileServer(http.Dir(webDir))
 	http.Handle("/", fs)

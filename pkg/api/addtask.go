@@ -1,56 +1,19 @@
 package api
 
 import (
+	"13spr/pkg/db"
+	"13spr/pkg/utils"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
-
-	"13spr/pkg/db"
 )
 
 // writeJSON отправляет данные в формате JSON
 func writeJSON(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	json.NewEncoder(w).Encode(data)
-}
-
-// checkTask проверяет корректность задачи
-func checkTask(task *db.Task) error {
-	if task.Title == "" {
-		return errors.New("не указан заголовок задачи")
-	}
-
-	now := time.Now().Format("20060102")
-
-	// Проверяем дату
-	var t time.Time
-	var err error
-	if task.Date == "" {
-		task.Date = now
-	} else {
-		t, err = time.Parse("20060102", task.Date)
-		if err != nil {
-			return fmt.Errorf("некорректный формат даты: %w", err)
-		}
-		if afterNow(t, now) {
-			// Если дата меньше текущей — обновляем на сегодня
-			task.Date = now
-		}
-	}
-
-	// Проверяем правило повторения
-	if task.Repeat != "" {
-		next, err := NextDate(now, task.Date, task.Repeat)
-		if err != nil {
-			return fmt.Errorf("неподдерживаемое правило повторения: %w", err)
-		}
-		task.Date = next
-	}
-
-	return nil
 }
 
 // addTaskHandler обрабатывает POST /api/task
@@ -68,10 +31,36 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = checkTask(&task)
-	if err != nil {
-		writeJSON(w, map[string]string{"error": err.Error()})
+	// Проверка обязательных полей
+	if task.Title == "" {
+		writeJSON(w, map[string]string{"error": "не указан заголовок задачи"})
 		return
+	}
+
+	// Проверка даты
+	now := time.Now()
+	var t time.Time
+	if task.Date == "" {
+		task.Date = now.Format(utils.DateFormat)
+	} else {
+		t, err = time.Parse(utils.DateFormat, task.Date)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": "некорректный формат даты"})
+			return
+		}
+		if utils.AfterNow(t, now) {
+			task.Date = now.Format(utils.DateFormat)
+		}
+	}
+
+	// Проверка правила повторения
+	if task.Repeat != "" {
+		next, err := NextDate(now, task.Date, task.Repeat)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": "неподдерживаемое правило повторения"})
+			return
+		}
+		task.Date = next
 	}
 
 	id, err := db.AddTask(&task)
@@ -120,26 +109,25 @@ func putTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверка даты
-	now := time.Now().Format("20060102")
+	now := time.Now()
 	var t time.Time
-	var errParse error
 	if task.Date == "" {
-		task.Date = now
+		task.Date = now.Format(utils.DateFormat)
 	} else {
-		t, errParse = time.Parse("20060102", task.Date)
-		if errParse != nil {
+		t, err = time.Parse(utils.DateFormat, task.Date)
+		if err != nil {
 			writeJSON(w, map[string]string{"error": "некорректный формат даты"})
 			return
 		}
-		if afterNow(t, now) {
-			task.Date = now
+		if utils.AfterNow(t, now) {
+			task.Date = now.Format(utils.DateFormat)
 		}
 	}
 
 	// Проверка правила повторения
 	if task.Repeat != "" {
-		next, errNext := NextDate(now, task.Date, task.Repeat)
-		if errNext != nil {
+		next, err := NextDate(now, task.Date, task.Repeat)
+		if err != nil {
 			writeJSON(w, map[string]string{"error": "неподдерживаемое правило повторения"})
 			return
 		}
