@@ -1,3 +1,4 @@
+// pkg/api/api.go
 package api
 
 import (
@@ -7,12 +8,7 @@ import (
 )
 
 func Init() {
-	http.HandleFunc("/api/nextdate", NextDayHandler)
-	http.HandleFunc("/api/task", TaskHandler)
-	http.HandleFunc("/api/tasks", TasksHandler)
-	http.HandleFunc("/api/task/done", DoneTaskHandler)
-	http.HandleFunc("/api/task/delete", DeleteTaskHandler)
-	http.HandleFunc("/api/signin", signinHandler)
+	// ПУСТАЯ функция - все обработчики регистрируются в server.go
 }
 
 func TaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -132,4 +128,8 @@ func DeleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 	// Успешное удаление — пустой ответ
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.Write([]byte("{}"))
+}
+
+func SigninHandler(w http.ResponseWriter, r *http.Request) {
+	// реализация signinHandler
 }

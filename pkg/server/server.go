@@ -13,12 +13,15 @@ const webDir = "./web"
 func Start(port string) error {
 	api.Init()
 
-	// Защита API-запросов
+	// Регистрация обработчиков - только здесь!
+	http.HandleFunc("/api/nextdate", api.NextDayHandler)
 	http.HandleFunc("/api/task", api.TaskHandler)
 	http.HandleFunc("/api/tasks", api.TasksHandler)
 	http.HandleFunc("/api/task/done", api.DoneTaskHandler)
 	http.HandleFunc("/api/task/delete", api.DeleteTaskHandler)
+	http.HandleFunc("/api/signin", api.SigninHandler)
 
+	// Файловый сервер
 	fs := http.FileServer(http.Dir(webDir))
 	http.Handle("/", fs)
 
