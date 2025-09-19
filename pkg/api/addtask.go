@@ -1,3 +1,4 @@
+// pkg/api/addtask.go
 package api
 
 import (
@@ -39,21 +40,21 @@ func addTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Проверка даты
 	now := time.Now()
-	var t time.Time
 	if task.Date == "" {
 		task.Date = now.Format(utils.DateFormat)
 	} else {
-		t, err = time.Parse(utils.DateFormat, task.Date)
+		t, err := time.Parse(utils.DateFormat, task.Date)
 		if err != nil {
 			writeJSON(w, map[string]string{"error": "некорректный формат даты"})
 			return
 		}
-		if utils.AfterNow(t, now) {
+		// Если дата меньше сегодняшней - устанавливаем сегодня
+		if t.Before(truncateToDay(now)) {
 			task.Date = now.Format(utils.DateFormat)
 		}
 	}
 
-	// Проверка правила повторения
+	// Если есть правило повторения - вычисляем следующую дату
 	if task.Repeat != "" {
 		next, err := NextDate(now, task.Date, task.Repeat)
 		if err != nil {
@@ -110,21 +111,21 @@ func putTaskHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Проверка даты
 	now := time.Now()
-	var t time.Time
 	if task.Date == "" {
 		task.Date = now.Format(utils.DateFormat)
 	} else {
-		t, err = time.Parse(utils.DateFormat, task.Date)
+		t, err := time.Parse(utils.DateFormat, task.Date)
 		if err != nil {
 			writeJSON(w, map[string]string{"error": "некорректный формат даты"})
 			return
 		}
-		if utils.AfterNow(t, now) {
+		// Если дата меньше сегодняшней - устанавливаем сегодня
+		if t.Before(truncateToDay(now)) {
 			task.Date = now.Format(utils.DateFormat)
 		}
 	}
 
-	// Проверка правила повторения
+	// Если есть правило повторения - вычисляем следующую дату
 	if task.Repeat != "" {
 		next, err := NextDate(now, task.Date, task.Repeat)
 		if err != nil {
@@ -142,6 +143,68 @@ func putTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Успешное обновление — пустой ответ
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.Write([]byte("{}"))
+	writeJSON(w, map[string]string{})
+}
+
+func doneTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeJSON(w, map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	task, err := db.GetTask(id)
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+
+	now := time.Now()
+
+	if task.Repeat == "" {
+		// Одноразовая задача — удаляем
+		err = db.DeleteTask(id)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+	} else {
+		// Периодическая задача — вычисляем следующую дату
+		next, err := NextDate(now, task.Date, task.Repeat)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+
+		err = db.UpdateDate(next, id)
+		if err != nil {
+			writeJSON(w, map[string]string{"error": err.Error()})
+			return
+		}
+	}
+
+	// Успешно — пустой ответ
+	writeJSON(w, map[string]string{})
+}
+
+func deleteTaskHandler(w http.ResponseWriter, r *http.Request) {
+	id := r.URL.Query().Get("id")
+	if id == "" {
+		writeJSON(w, map[string]string{"error": "Не указан идентификатор"})
+		return
+	}
+
+	err := db.DeleteTask(id)
+	if err != nil {
+		writeJSON(w, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Успешное удаление — пустой ответ
+	writeJSON(w, map[string]string{})
+}
+
+// truncateToDay обрезает время до начала дня
+func truncateToDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }

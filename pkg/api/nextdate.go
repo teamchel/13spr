@@ -1,3 +1,4 @@
+// pkg/api/nextdate.go
 package api
 
 import (
@@ -26,43 +27,60 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 		return "", errors.New("invalid repeat rule")
 	}
 
-	var interval int
-	var isDay, isYear, isWeek, isMonth bool
-	var weekDays []int
-	var monthDays []int
-	var months []int
+	var date time.Time
 
 	// Определяем тип правила
 	switch parts[0] {
 	case "d":
-		isDay = true
 		if len(parts) < 2 {
 			return "", errors.New("missing interval for 'd'")
 		}
-		interval, err = parseInterval(parts[1])
+		interval, err := parseInterval(parts[1])
 		if err != nil {
 			return "", err
 		}
 		if interval < 1 || interval > 400 {
 			return "", errors.New("interval out of range [1, 400]")
 		}
+
+		// Всегда применяем правило: добавляем интервал к начальной дате
+		date = start.AddDate(0, 0, interval)
+
 	case "y":
-		isYear = true
-		interval = 365 // год
+		// Всегда применяем правило: добавляем 1 год к начальной дате
+		currentYear := start.Year()
+		nextYear := currentYear + 1
+		month := start.Month()
+		day := start.Day()
+
+		// Обработка 29 февраля
+		if month == 2 && day == 29 {
+			if !isLeapYear(nextYear) {
+				day = 28
+			}
+		}
+
+		date = time.Date(nextYear, month, day, start.Hour(), start.Minute(), start.Second(), start.Nanosecond(), start.Location())
+
 	case "w":
-		isWeek = true
 		if len(parts) < 2 {
 			return "", errors.New("missing days for 'w'")
 		}
-		weekDays, err = parseWeekDays(parts[1])
+		weekDays, err := parseWeekDays(parts[1])
 		if err != nil {
 			return "", err
 		}
+
+		// Находим следующий день недели от начальной даты
+		date = findNextWeekDay(start, weekDays)
+
 	case "m":
-		isMonth = true
 		if len(parts) < 2 {
 			return "", errors.New("missing days for 'm'")
 		}
+		var monthDays []int
+		var months []int
+
 		monthParts := strings.Split(parts[1], ",")
 		for _, p := range monthParts {
 			d, err := parseInterval(p)
@@ -71,6 +89,7 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 			}
 			monthDays = append(monthDays, d)
 		}
+
 		// Опционально: вторая последовательность месяцев
 		if len(parts) >= 3 {
 			for _, p := range strings.Split(parts[2], ",") {
@@ -81,26 +100,20 @@ func NextDate(now time.Time, dstart, repeat string) (string, error) {
 				months = append(months, m)
 			}
 		}
+
+		// Находим следующую дату от начальной даты
+		date = findNextMonthDay(start, monthDays, months)
+
 	default:
 		return "", errors.New("unsupported repeat rule")
 	}
 
-	// Теперь ищем ближайшую дату после now
-	date := start
-	for !utils.AfterNow(date, now) {
-		switch {
-		case isDay:
-			date = date.AddDate(0, 0, interval)
-		case isYear:
-			date = date.AddDate(1, 0, 0)
-		case isWeek:
-			date = findNextWeekDay(date, weekDays)
-		case isMonth:
-			date = findNextMonthDay(date, monthDays, months)
-		}
-	}
-
 	return date.Format(utils.DateFormat), nil
+}
+
+// isLeapYear проверяет, является ли год високосным
+func isLeapYear(year int) bool {
+	return year%4 == 0 && (year%100 != 0 || year%400 == 0)
 }
 
 // parseInterval преобразует строку в число
